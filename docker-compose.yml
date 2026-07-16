@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # ── MySQL Database ─────────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: edusphere-mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: eduspheredb
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_USER: edusphere
+      MYSQL_PASSWORD: eduspherepass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - edusphere-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      timeout: 20s
+      retries: 10
+
+  # ── Spring Boot Backend ────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: edusphere-backend
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eduspheredb?useSSL=false&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: edusphere
+      SPRING_DATASOURCE_PASSWORD: eduspherepass
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.MySQL8Dialect
+      APP_JWT_SECRET: 9a2f982878144b62d3a3d5e27a6c90538a7c29e160e90c91350a8c2fdeee2d08
+      APP_JWT_EXPIRATION_MS: 86400000
+    ports:
+      - "8080:8080"
+    networks:
+      - edusphere-network
+
+  # ── React Frontend ─────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: edusphere-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - edusphere-network
+
+# ── Volumes & Networks ─────────────────────────────────────────────────────
+volumes:
+  mysql_data:
+
+networks:
+  edusphere-network:
+    driver: bridge
